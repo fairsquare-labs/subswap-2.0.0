@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Hyungsuk Kang
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,103 +15,102 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! # Assets Module
+//! # Subswap Module
 //!
-//! A simple, secure module for dealing with fungible assets.
+//! An automated market maker module extended from the [asset](../asset/Module.html) module.
 //!
 //! ## Overview
 //!
-//! The Assets module provides functionality for asset management of fungible asset classes
+//! The Subswap module provides functionality for management and exchange of fungible asset classes
 //! with a fixed supply, including:
 //!
-//! * Asset Issuance
-//! * Asset Transfer
-//! * Asset Destruction
+//! * Liquidity provider token issuance
+//! * Compensation for providing liquidity
+//! * Automated liquidity provisioning
+//! * Asset exchange
 //!
-//! To use it in your runtime, you need to implement the assets [`Trait`](./trait.Trait.html).
+//! To use it in your runtime, you need to implement the subswap [`Trait`](./trait.Trait.html).
 //!
 //! The supported dispatchable functions are documented in the [`Call`](./enum.Call.html) enum.
 //!
 //! ### Terminology
 //!
-//! * **Asset issuance:** The creation of a new asset, whose total supply will belong to the
-//!   account that issues the asset.
-//! * **Asset transfer:** The action of transferring assets from one account to another.
-//! * **Asset destruction:** The process of an account removing its entire holding of an asset.
+//! * **Liquidity provider token:** The creation of a new asset by providing liquidity between two fungible assets. Liquidity provider token act as the share of the pool and gets the profit created from exchange fee.
+//! * **Asset exchange:** The process of an account transferring an asset to exchange with other kind of fungible asset.
 //! * **Fungible asset:** An asset whose units are interchangeable.
 //! * **Non-fungible asset:** An asset for which each unit has unique characteristics.
 //!
 //! ### Goals
 //!
-//! The assets system in Substrate is designed to make the following possible:
+//! The Subswap system in Substrate is designed to make the following possible:
 //!
-//! * Issue a unique asset to its creator's account.
-//! * Move assets between accounts.
-//! * Remove an account's balance of an asset when requested by that account's owner and update
-//!   the asset's total supply.
+//! * Reward liquidity providers with tokens to receive exchanges fees which is proportional to their contribution.
+//! * Swap assets with automated market price equation(e.g. X*Y=K or curve function from Kyber, dodoex, etc).
+//! * Issue an fungible asset which can be backed with opening exchange with other assets 
 //!
 //! ## Interface
 //!
 //! ### Dispatchable Functions
 //!
 //! * `issue` - Issues the total supply of a new fungible asset to the account of the caller of the function.
+//! * `mint` - Mints the asset to the account in the argument with the requested amount from the caller. Caller must be the creator of the asset.
+//! * `burn` - Burns the asset from the caller by the amount in the argument 
 //! * `transfer` - Transfers an `amount` of units of fungible asset `id` from the balance of
 //! the function caller's account (`origin`) to a `target` account.
 //! * `destroy` - Destroys the entire holding of a fungible asset `id` associated with the account
 //! that called the function.
+//! * `mint_liquidity` - Mints liquidity token by adding deposits to a certain pair for exchange. The assets must have different identifier.
+//! * `burn_liquidity` - Burns liquidity token for a pair and receives each asset in the pair.  
+//! * `swap` - Swaps from one asset to the another, paying 0.3% fee to the liquidity providers.
 //!
 //! Please refer to the [`Call`](./enum.Call.html) enum and its associated variants for documentation on each function.
 //!
 //! ### Public Functions
-//! <!-- Original author of descriptions: @gavofyork -->
 //!
-//! * `balance` - Get the asset `id` balance of `who`.
-//! * `total_supply` - Get the total supply of an asset `id`.
-//!
+//! * `balance` - Get the balance of the account with the asset id
+//! * `total_supply` - Get the total supply of an asset.
+//! * `mint_from_system` - Mint asset from the system to an account, increasing total supply.
+//! * `burn_from_system` - Burn asset from the system to an account, decreasing total supply.
+//! * `transfer_from_system - Transfer asset from an account to the system with no change in total supply.
+//! * `transfer_to_system - Transfer asset from system to the user with no chang in total supply.
+//! * `issue_from_system` - Issue asset from system 
+//! * `swap` - Swap one asset to another asset
+//! 
 //! Please refer to the [`Module`](./struct.Module.html) struct for details on publicly available functions.
 //!
 //! ## Usage
 //!
-//! The following example shows how to use the Assets module in your runtime by exposing public functions to:
+//! The following example shows how to use the Subswap module in your runtime by exposing public functions to:
 //!
-//! * Issue a new fungible asset for a token distribution event (airdrop).
+//! * Issue and manage a new fungible asset.
 //! * Query the fungible asset holding balance of an account.
 //! * Query the total supply of a fungible asset that has been issued.
+//! * Manage existing asset for other business logic
 //!
 //! ### Prerequisites
 //!
-//! Import the Assets module and types and derive your runtime's configuration traits from the Assets module trait.
+//! Import the Subswap module and types and derive your runtime's configuration traits from the Assets module trait.
 //!
 //! ### Simple Code Snippet
 //!
 //! ```rust,ignore
-//! use pallet_assets as assets;
+//! use subswap;
+//! use pallet_balances as balances;
 //! use frame_support::{decl_module, dispatch, ensure};
 //! use frame_system::ensure_signed;
 //!
-//!
-//! pub trait Trait: assets::Trait { }
+//! pub trait Trait: subswap::Trait + balances::Trait {
+//! 
+//!  }
 //!
 //! decl_module! {
 //! 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-//! 		pub fn issue_token_airdrop(origin) -> dispatch::DispatchResult {
+//! 		pub fn trade(origin, token0: T::AssetId, amount0: <T as balances::Trait>::Balance, token1: T::AssetId) -> dispatch::DispatchResult {
 //! 			let sender = ensure_signed(origin).map_err(|e| e.as_str())?;
 //!
-//! 			const ACCOUNT_ALICE: u64 = 1;
-//! 			const ACCOUNT_BOB: u64 = 2;
-//! 			const COUNT_AIRDROP_RECIPIENTS: u64 = 2;
-//! 			const TOKENS_FIXED_SUPPLY: u64 = 100;
-//!
-//! 			ensure!(!COUNT_AIRDROP_RECIPIENTS.is_zero(), "Divide by zero error.");
-//!
-//! 			let asset_id = Self::next_asset_id();
-//!
-//! 			<NextAssetId<T>>::mutate(|asset_id| *asset_id += 1);
-//! 			<Balances<T>>::insert((asset_id, &ACCOUNT_ALICE), TOKENS_FIXED_SUPPLY / COUNT_AIRDROP_RECIPIENTS);
-//! 			<Balances<T>>::insert((asset_id, &ACCOUNT_BOB), TOKENS_FIXED_SUPPLY / COUNT_AIRDROP_RECIPIENTS);
-//! 			<TotalSupply<T>>::insert(asset_id, TOKENS_FIXED_SUPPLY);
-//!
-//! 			Self::deposit_event(RawEvent::Issued(asset_id, sender, TOKENS_FIXED_SUPPLY));
+//!             let amount_out = subswap::Module<T>::swap(&token0, &amount0, &token1); 
+//! 			
+//! 			Self::deposit_event(RawEvent::Trade(token0, amount0, token1, amount_out));
 //! 			Ok(())
 //! 		}
 //! 	}
