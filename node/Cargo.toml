@@ -22,6 +22,8 @@ substrate-build-script-utils = '2.0.0'
 jsonrpc-core = '15.0.0'
 structopt = '0.3.8'
 
+serde_json = { version = "1.0.57"}
+
 # local dependencies
 node-template-runtime = { path = '../runtime', version = '2.0.0' }
 
