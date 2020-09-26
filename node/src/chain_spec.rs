@@ -18,13 +18,13 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
 const SUBSWAP_PROPERTIES: &str = r#"
 {
 	"ss58format": 7,
-	"tokenDecimals": 18,
-	"tokenSymbol": "SUB"
+	"tokenDecimals": 15,
+	"tokenSymbol": "SUNI"
 }	
 "#;
 
 
-const SUBSWAP_PROTOCOL_ID: &str = "sub";
+const SUBSWAP_PROTOCOL_ID: &str = "suni";
 
 /// Generate a crypto pair from seed.
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
