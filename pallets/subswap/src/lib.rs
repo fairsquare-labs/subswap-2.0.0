@@ -138,8 +138,9 @@ use sp_runtime::traits::{AtLeast32Bit, Zero, StaticLookup};
 use frame_system::ensure_signed;
 use sp_runtime::traits::One;
 use pallet_balances as balances;
+use sp_core::U256;
 use pallet_timestamp as timestamp;
-use sp_runtime::{FixedU128, FixedPointNumber, SaturatedConversion};
+use sp_runtime::{FixedU128, FixedPointNumber, SaturatedConversion, traits::{UniqueSaturatedInto, UniqueSaturatedFrom}};
 use sp_runtime::traits::{CheckedMul, CheckedAdd, CheckedDiv, CheckedSub};
 use crate::sp_api_hidden_includes_decl_storage::hidden_include::traits::Get;
 mod math;
@@ -419,8 +420,8 @@ decl_event! {
         IssuedBySystem(AssetId, Balance),
         /// Some assets were transferred. \[asset_id, from, to, amount\]
         Transferred(AssetId, AccountId, AccountId, Balance),
-        TransferredFromSystem(AssetId, Balance),
-        TransferredToSystem(AssetId, Balance),
+        TransferredFromSystem(AssetId, AccountId, Balance),
+        TransferredToSystem(AssetId, AccountId, Balance),
         /// Some assets were minted. \[asset_id, owner, balance]
         Minted(AssetId, AccountId, Balance),
         /// Some assets were burned. \[asset_id, owner, balance]
@@ -511,7 +512,9 @@ impl<T: Trait> Module<T> {
 	/// Get the asset `id` balance of `who`.
 	pub fn balance(id: T::AssetId, who: T::AccountId) -> T::Balance {
 		<Balances<T>>::get((id, who))
-	}
+    }
+    
+ 
 
 	/// Get the total supply of an asset `id`.
 	pub fn total_supply(id: T::AssetId) -> T::Balance {
@@ -566,7 +569,7 @@ impl<T: Trait> Module<T> {
         amount: &T::Balance,
     ) -> dispatch::DispatchResult {
         ensure!(!amount.is_zero(), Error::<T>::AmountZero);
-        Self::deposit_event(RawEvent::Minted(*id, target.clone(), *amount));
+        Self::deposit_event(RawEvent::TransferredFromSystem(*id, target.clone(), *amount));
         if *id == Zero::zero() {
             let new_free = balances::Module::<T>::free_balance(target) + *amount;
             let _free = balances::Module::<T>::mutate_account(target, |account| {
@@ -586,7 +589,7 @@ impl<T: Trait> Module<T> {
         amount: &T::Balance,
     ) -> dispatch::DispatchResult {
         ensure!(!amount.is_zero(), Error::<T>::AmountZero);
-        Self::deposit_event(RawEvent::Burned(*id, target.clone(), *amount));
+        Self::deposit_event(RawEvent::TransferredToSystem(*id, target.clone(), *amount));
         if *id == Zero::zero() {
             let new_free = balances::Module::<T>::free_balance(target) - *amount;
             let _free = balances::Module::<T>::mutate_account(target, |account| {
@@ -653,23 +656,30 @@ impl<T: Trait> Module<T> {
         }
     }
 
+    pub fn to_u256(value: &<T as balances::Trait>::Balance) -> U256 {
+        U256::from(UniqueSaturatedInto::<u128>::unique_saturated_into(*value))
+    }
+
 	pub fn _get_amount_out(
         amount_in: &<T as balances::Trait>::Balance,
         reserve_in: &<T as balances::Trait>::Balance,
         reserve_out: &<T as balances::Trait>::Balance,
     ) -> <T as balances::Trait>::Balance {
-        let amount_in_with_fee = amount_in
-            .checked_mul(&T::Balance::from(997))
+        let amount_in_256 = Self::to_u256(amount_in);
+        let reserve_in_256 = Self::to_u256(reserve_in);
+        let reserve_out_256 = Self::to_u256(reserve_out);
+        let amount_in_with_fee = amount_in_256
+            .checked_mul(U256::from(997))
             .expect("Multiplication overflow");
         let numerator = amount_in_with_fee
-            .checked_mul(reserve_out)
+            .checked_mul(reserve_out_256)
             .expect("Multiplication overflow");
-        let denominator = reserve_in
-            .checked_mul(&T::Balance::from(1000))
+        let denominator = reserve_in_256
+            .checked_mul(U256::from(1000))
             .expect("Multiplication overflow")
-            .checked_add(&amount_in_with_fee)
+            .checked_add(amount_in_with_fee)
             .expect("Overflow");
-        numerator.checked_div(&denominator).expect("divided by zero")
+        <T as balances::Trait>::Balance::unique_saturated_from(numerator.checked_div(denominator).expect("divided by zero").as_u128())
     }
 	
 

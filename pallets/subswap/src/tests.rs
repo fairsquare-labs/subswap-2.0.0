@@ -71,8 +71,13 @@ mod tests {
 	}
 	impl Trait for Test {
 		type Event = ();
-		type Balance = u64;
+		type Balance = u128;
 		type AssetId = u32;
+	}
+	impl From<u128> for Balance {
+		fn from(value: u128) -> Balance {
+			return Self::from(value);
+		}
 	}
 	type Assets = Module<Test>;
 
