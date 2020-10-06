@@ -507,6 +507,10 @@ decl_storage! {
 
 // The main implementation block for the module.
 impl<T: Trait> Module<T> {
+	// Module account id
+	pub fn account_id() -> T::AccountId {
+		T::ModuleId::get().into_account()
+	}
 	// Public immutables
 
 	/// Get the asset `id` balance of `who`.
