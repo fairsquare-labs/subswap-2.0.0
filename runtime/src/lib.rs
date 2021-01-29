@@ -12,9 +12,9 @@ use sp_runtime::{
 	ApplyExtrinsicResult, generic, create_runtime_str, impl_opaque_keys, MultiSignature,
 	transaction_validity::{TransactionValidity, TransactionSource},
 };
-use sp_runtime::traits::{
+use sp_runtime::{ModuleId, traits::{
 	BlakeTwo256, Block as BlockT, IdentityLookup, Verify, IdentifyAccount, NumberFor, Saturating,
-};
+}};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
@@ -38,8 +38,8 @@ pub use frame_support::{
 	},
 };
 
-/// Import the template pallet.
-pub use subswap;
+pub use pallet_standard_token;
+pub use pallet_standard_oracle::Call as OracleCall;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -246,6 +246,7 @@ impl pallet_balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 1;
+	pub const AssetModuleId: ModuleId = ModuleId(*b"stnd/ast");
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
@@ -262,11 +263,29 @@ impl pallet_sudo::Trait for Runtime {
 }
 
 /// Configure the template pallet in pallets/template.
-impl subswap::Trait for Runtime {
+impl pallet_standard_token::Trait for Runtime {
+	type ModuleId = AssetModuleId;
 	type Event = Event;
 	type AssetId = u32;
+	type WeightInfo = pallet_standard_token::weights::SubstrateWeight<Runtime>;	
 }
 
+impl pallet_standard_market::Trait for Runtime {
+	type Event = Event;
+}
+
+impl pallet_standard_oracle::Trait for Runtime {
+	type Event = Event;
+}
+
+parameter_types! {
+	pub const VaultModuleId: ModuleId = ModuleId(*b"stnd/vlt");
+}
+
+impl pallet_standard_vault::Trait for Runtime {
+	type Event = Event;
+	type VaultModuleId = VaultModuleId;
+}
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -284,7 +303,10 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
-		Subswap: subswap::{Module, Call, Storage, Event<T>},
+		Token: pallet_standard_token::{Module, Call, Storage, Event<T>, Config<T>},
+		Market: pallet_standard_market::{Module, Call, Storage, Event<T>},
+		Oracle: pallet_standard_oracle::{Module, Call, Storage, Event<T>, Config<T>},
+		Vault: pallet_standard_vault::{Module, Call, Storage, Event<T>},
 	}
 );
 
